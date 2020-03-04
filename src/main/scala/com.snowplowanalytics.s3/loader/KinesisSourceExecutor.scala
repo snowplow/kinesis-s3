@@ -16,6 +16,7 @@ package com.snowplowanalytics.s3.loader
 import org.slf4j.LoggerFactory
 
 // AWS Kinesis Connector libs
+import com.amazonaws.services.kinesis.{AmazonKinesis, AmazonKinesisClient}
 import com.amazonaws.services.kinesis.connectors.{
   KinesisConnectorConfiguration,
   KinesisConnectorExecutorBase,
@@ -90,6 +91,23 @@ class KinesisSourceExecutor(
     * @param metricFactory would be used to emit metrics in Amazon Kinesis Client Library
     */
   override def initialize(kinesisConnectorConfiguration: KinesisConnectorConfiguration, metricFactory: IMetricsFactory): Unit = {
+    val workerBuilder = new Worker.Builder()
+      .recordProcessorFactory(getKinesisConnectorRecordProcessorFactory())
+      .kinesisClient(getKinesisClient(kinesisConnectorConfiguration))
+
+    // If a metrics factory was specified, use it.
+    worker = if (metricFactory != null) {
+      workerBuilder
+        .metricsFactory(metricFactory)
+        .build()
+    } else {
+      workerBuilder.build()
+    }
+
+    LOG.info(getClass.getSimpleName + " worker created")
+  }
+
+  private def getKinesisClient(kinesisConnectorConfiguration: KinesisConnectorConfiguration): AmazonKinesis = {
     val kinesisClientLibConfiguration = getKCLConfig(initialPosition, initialTimestamp, kinesisConnectorConfiguration)
 
     if (!kinesisConnectorConfiguration.CALL_PROCESS_RECORDS_EVEN_FOR_EMPTY_LIST) {
@@ -100,16 +118,10 @@ class KinesisSourceExecutor(
       LOG.warn("idleTimeBetweenReads is greater than bufferTimeMillisecondsLimit. For best results, ensure that bufferTimeMillisecondsLimit is more than or equal to idleTimeBetweenReads ")
     }
 
-    // If a metrics factory was specified, use it.
-    worker = if (metricFactory != null) {
-      new Worker(getKinesisConnectorRecordProcessorFactory(),
-                 kinesisClientLibConfiguration,
-                 metricFactory)
-    } else {
-      new Worker(getKinesisConnectorRecordProcessorFactory(),
-                 kinesisClientLibConfiguration)
-    }
-    LOG.info(getClass.getSimpleName + " worker created")
+    AmazonKinesisClient
+      .builder()
+      .withClientConfiguration(kinesisClientLibConfiguration.getKinesisClientConfiguration)
+      .build()
   }
 
   override def getKinesisConnectorRecordProcessorFactory = {
