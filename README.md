@@ -57,7 +57,7 @@ Usage: snowplow-s3-loader [options]
 Create your own config file:
 
 ```bash
-$ cp examples/config.hocon.sample my.conf
+$ cp config/config.hocon.sample my.conf
 ```
 
 You will need to edit all fields in the config.  Consult [this portion][config] of the setup guide on how to fill in the fields.
